@@ -1,0 +1,18 @@
+{
+  "name": "obsidian-xuexiguan-reader",
+  "version": "0.3.0",
+  "private": true,
+  "description": "Local Markdown ebook reader for native Obsidian workspaces",
+  "main": "main.js",
+  "license": "MIT",
+  "author": "Zhentong Ye",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "node verify-reader.cjs && node verify-demo.cjs",
+    "check": "node --check main.js && node --check verify-reader.cjs && node --check verify-demo.cjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/1235357/obsidian-xuexiguan-reader.git"
+  }
+}

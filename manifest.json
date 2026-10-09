@@ -1,0 +1,10 @@
+{
+  "id": "xuexiguan-reader",
+  "name": "渐构 · 电子书阅读器",
+  "version": "0.3.0",
+  "minAppVersion": "1.5.0",
+  "description": "在现有知识库中阅读可编辑的 Markdown 书籍，浏览段落、概念、原页和原生 Excalidraw 图谱。",
+  "author": "Zhentong Ye",
+  "isDesktopOnly": false,
+  "authorUrl": "https://github.com/1235357"
+}

@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "bookPath": "Demo/Temperature",
+  "title": "温度比较演示",
+  "author": "原创演示",
+  "units": [
+    {
+      "id": "demo-01",
+      "title": "第一章 温度比较",
+      "path": "Demo/Temperature/正文/01 温度比较.md",
+      "guidePath": "Demo/Temperature/附录/全书解说.md",
+      "guideHeading": "第01章 温度比较",
+      "segments": [
+        { "id": "demo-temperature", "type": "d", "title": "温度" },
+        { "id": "demo-blocks", "type": "e", "title": "金属块比较" }
+      ]
+    },
+    {
+      "id": "demo-02",
+      "title": "第二章 测量条件",
+      "path": "Demo/Temperature/正文/02 测量条件.md",
+      "guidePath": "Demo/Temperature/附录/全书解说.md",
+      "guideHeading": "第02章 测量条件"
+    }
+  ],
+  "concepts": []
+}

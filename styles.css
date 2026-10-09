@@ -1,0 +1,285 @@
+/* Reader content and the explicitly classified book home are the only styling
+   targets. Obsidian chrome, workspace panes and view headers remain native. */
+.workspace-leaf-content[data-type="xuexiguan-reader-view"] > .view-content.xgr-view {
+  padding: 0 !important;
+  overflow: hidden;
+  background: var(--background-primary);
+}
+.xgr-view {
+  --xgr-d: #4b99d3;
+  --xgr-e: #cd5255;
+  --xgr-t: #ebab37;
+  --xgr-c: #92949c;
+  --xgr-h: var(--text-muted, #92949c);
+  --xgr-v: #5572f1;
+  --xgr-font-size: 19px;
+  width: 100%; height: 100%;
+  color: var(--text-normal);
+  font-family: "KaiTi", "STKaiti", "楷体", serif;
+  container-type: inline-size;
+  container-name: xgr-reader;
+}
+.xgr-view *, .xgr-image-modal * { box-sizing: border-box; }
+.xgr-shell { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; }
+.xgr-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 24px 9px; flex: none; }
+.xgr-identity { display: flex; gap: 13px; align-items: baseline; min-width: 0; }
+.xgr-book-title { font-size: 18px; line-height: 1.4; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xgr-author { color: var(--text-muted); font-size: 13px; white-space: nowrap; }
+.xgr-tools { display: flex; gap: 5px; flex: none; flex-wrap: wrap; }
+.xgr-view .xgr-button, .xgr-image-modal .xgr-button {
+  background: transparent; color: var(--text-muted); border: 1px solid transparent;
+  box-shadow: none; border-radius: 5px; padding: 5px 9px; height: auto;
+  font-size: 13px; line-height: 1.5; cursor: pointer; white-space: nowrap;
+}
+.xgr-view .xgr-button:hover, .xgr-image-modal .xgr-button:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+.xgr-view .xgr-button:focus-visible, .xgr-image-modal .xgr-button:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
+.xgr-view .xgr-button[aria-pressed="true"] { color: var(--text-accent); background: var(--background-secondary); }
+.xgr-view .xgr-button:disabled { opacity: .3; cursor: default; }
+.xgr-navigation { display: flex; gap: 7px; align-items: center; padding: 0 24px 11px; flex: none; }
+.xgr-paragraph-navigation { display: flex; justify-content: flex-end; gap: 6px; padding: 0 24px 5px; flex: none; }
+.xgr-paragraph-navigation .xgr-button { font-size: 12px; }
+.xgr-view [hidden] { display: none !important; }
+.xgr-view .xgr-chapter-select {
+  flex: 1; min-width: 80px; max-width: 550px; border: 0; box-shadow: none;
+  color: var(--text-normal); background: var(--background-secondary); font-size: 14px;
+  padding: 6px 11px; height: 34px; border-radius: 5px;
+}
+.xgr-tabs { display: flex; align-items: center; gap: 5px; padding: 0 24px 7px; border-bottom: 1px solid var(--background-modifier-border); flex: none; }
+.xgr-tabs .xgr-button { border-radius: 0; border-bottom: 2px solid transparent; padding: 6px 12px; }
+.xgr-tabs .xgr-button.is-active { color: var(--text-accent); border-bottom-color: var(--interactive-accent); background: transparent; }
+.xgr-frame { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+.xgr-sidebar { width: 290px; flex: 0 0 290px; display: none; overflow: auto; padding: 17px 12px 28px; border-right: 1px solid var(--background-modifier-border); background: var(--background-primary); scrollbar-width: thin; }
+.xgr-sidebar-open .xgr-sidebar { display: block; }
+.xgr-scroll { flex: 1; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 28px 36px 80px; scrollbar-width: thin; }
+.xgr-view .xgr-article {
+  font-family: "KaiTi", "STKaiti", "楷体", serif;
+  font-size: var(--xgr-font-size); line-height: 1.9;
+  max-width: 900px; margin: 0 auto; padding: 0; width: 100%; color: var(--text-normal);
+  user-select: text; overflow-wrap: break-word;
+}
+.xgr-view .xgr-article h1 { margin-top: 0; margin-bottom: 1.2em; font-size: 1.75em; line-height: 1.45; }
+.xgr-view .xgr-article h2 { font-size: 1.35em; margin: 1.8em 0 .7em; }
+.xgr-view .xgr-article h3 { font-size: 1.1em; margin: 1.5em 0 .65em; }
+.xgr-view .xgr-article :is(h1, h2, h3, h4, h5, h6) {
+  color: var(--text-normal) !important;
+  font-family: "KaiTi", "STKaiti", "楷体", serif !important;
+}
+.xgr-view .snw-reference { display: none !important; }
+.xgr-view .xgr-duplicate-caption { display: none !important; }
+.xgr-view :is(.xgr-book-title, .xgr-author, button, select, input, .xgr-paragraph-title, .xgr-type-label, .xgr-panel-heading, .xgr-row-title, .xgr-concept-definition, .xgr-article p, .xgr-article li, .xgr-article td, .xgr-article th) {
+  font-family: "KaiTi", "STKaiti", "楷体", serif !important;
+}
+.xgr-view .xgr-article :is(p,a,span,li,td,th,strong,em,blockquote,code,pre,summary,.callout-title,.callout-content),
+.xgr-view :is(label,option) {
+  font-family: "KaiTi", "STKaiti", "楷体", serif !important;
+}
+.xgr-annotation-boundary { border-top: 1px solid var(--background-modifier-border); margin: 2em 0 1.2em; }
+.xgr-view .xgr-article p { margin: .75em 0; }
+.xgr-view .xgr-article ul, .xgr-view .xgr-article ol { padding-left: 1.6em; }
+.xgr-view .xgr-article li { margin: .4em 0; }
+.xgr-view .xgr-article u { text-decoration-thickness: .06em; text-underline-offset: .22em; }
+.xgr-view .xgr-article a.internal-link { text-decoration-line: underline; text-underline-offset: .2em; }
+.xgr-view .xgr-article img { display: block; max-width: 100%; max-height: 80vh; width: auto; height: auto; margin: 1.1em auto; object-fit: contain; cursor: zoom-in; }
+.xgr-view .xgr-article .internal-embed { max-width: 100%; }
+.xgr-view .xgr-article table { border-collapse: collapse; font-size: .87em; width: auto; max-width: 100%; margin: 1.2em 0; }
+.xgr-view .xgr-article th, .xgr-view .xgr-article td { white-space: normal; overflow-wrap: anywhere; vertical-align: top; line-height: 1.6; padding: .5em .65em; border-color: var(--background-modifier-border); }
+.xgr-view .xgr-article .math-block { max-width: 100%; overflow-x: auto; margin: 1.3em 0; }
+.xgr-view .xgr-article pre { overflow-x: auto; }
+.xgr-view .xgr-article .footnotes { border-top: 1px solid var(--background-modifier-border); margin-top: 2em; padding-top: 1em; font-size: .85em; line-height: 1.8; }
+.xgr-segment { --xgr-type: var(--xgr-h); margin: 1.25em 0 1.8em; scroll-margin-top: 22px; border-left: 2px solid var(--xgr-type); border-left-color: color-mix(in srgb, var(--xgr-type) 40%, transparent); padding-left: 15px; }
+.xgr-type-d { --xgr-type: var(--xgr-d); }
+.xgr-type-e { --xgr-type: var(--xgr-e); }
+.xgr-type-t { --xgr-type: var(--xgr-t); }
+.xgr-type-c { --xgr-type: var(--xgr-c); }
+.xgr-type-h { --xgr-type: var(--xgr-h); }
+.xgr-type-v { --xgr-type: var(--xgr-v); }
+.xgr-segment-label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; color: var(--xgr-type); font-family: "KaiTi", "STKaiti", "楷体", serif; line-height: 1.6; margin: 0 0 .65em; }
+.xgr-type-label { font-size: 11px; flex: none; opacity: .85; border: 1px solid var(--xgr-type); padding: 0 4px; border-radius: 3px; }
+.xgr-paragraph-title { font-size: 14px; font-weight: 550; }
+.xgr-view .xgr-paragraph-source { font-size: 11px; padding: 0 4px; margin-left: auto; opacity: 0; transition: opacity .15s; }
+.xgr-view .xgr-relation-link { font-size: 12px; color: var(--xgr-d); padding: 0 4px; white-space: normal; text-align: left; }
+.xgr-view .xgr-paragraph-title.xgr-button { font-size: 14px; color: var(--xgr-type); padding: 0; white-space: normal; text-align: left; font-weight: 550; }
+.xgr-segment-selected { border-left-color: var(--xgr-type); }
+.xgr-guide-panel { flex: 0 0 40%; min-width: 0; max-width: 520px; border-left: 1px solid var(--background-modifier-border); display: flex; flex-direction: column; overflow: hidden; }
+.xgr-guide-tools { display: flex; align-items: center; gap: 6px; padding: 8px 15px; border-bottom: 1px solid var(--background-modifier-border); flex: none; font-size: 14px; }
+.xgr-guide-tools strong { margin-right: auto; }
+.xgr-guide-scroll { min-height: 0; overflow: auto; padding: 20px 22px 60px; overscroll-behavior: contain; scrollbar-width: thin; }
+.xgr-guide-scroll .xgr-article { font-size: calc(var(--xgr-font-size) - 2px); }
+.xgr-guide-open .xgr-sidebar { display: none; }
+.xgr-segment:hover .xgr-paragraph-source, .xgr-segment:focus-within .xgr-paragraph-source { opacity: .75; }
+.xgr-segment-body { transition: opacity .15s; }
+.xgr-muted .xgr-segment-body { opacity: .22; }
+.xgr-muted .xgr-segment-label { opacity: .4; }
+.xgr-muted:hover .xgr-segment-body, .xgr-muted:focus-within .xgr-segment-body { opacity: 1; }
+.xgr-names-only .xgr-segment { margin: .7em 0; padding: 7px 12px; border-left-color: var(--xgr-type); }
+.xgr-names-only .xgr-segment-body { display: none; }
+.xgr-names-only .xgr-segment-label { margin: 0; }
+.xgr-names-only .xgr-paragraph-source { opacity: .5; }
+.xgr-arrival { border-left-color: var(--xgr-type); }
+.xgr-view .xgr-sidebar .xgr-panel-heading {
+  display: block !important; position: static !important;
+  font-size: 14px !important; color: var(--text-muted) !important; font-weight: 600 !important;
+  margin: 0 7px 12px !important; padding: 0 !important; line-height: 1.6 !important;
+  width: auto !important; height: auto !important; min-height: 0 !important;
+  transform: none !important; border: 0 !important; background: none !important;
+}
+.xgr-view .xgr-sidebar .xgr-panel-heading::before,
+.xgr-view .xgr-sidebar .xgr-panel-heading::after { display: none !important; }
+.xgr-view .xgr-directory-row, .xgr-view .xgr-outline-row { display: block; width: 100%; text-align: left; white-space: normal; margin-bottom: 3px; padding: 7px 9px; }
+.xgr-view .xgr-directory-row.is-current { color: var(--text-accent); background: var(--background-secondary); }
+.xgr-view .xgr-outline-row { padding-left: 18px; font-size: 12px; }
+.xgr-view .xgr-toggle,
+.xgr-view .xgr-type-choice {
+  display: flex !important; position: static !important; align-items: center !important;
+  min-width: 0 !important; width: auto !important; height: auto !important;
+  font-size: 16px !important; line-height: 1.6 !important; transform: none !important;
+}
+.xgr-view .xgr-toggle { gap: 8px; margin: 12px 7px !important; }
+.xgr-view .xgr-toggle > span,
+.xgr-view .xgr-type-choice > span {
+  display: inline !important; position: static !important; min-width: 0 !important;
+  font-size: 16px !important; line-height: 1.6 !important; margin: 0 !important;
+  padding: 0 !important; transform: none !important; white-space: nowrap !important;
+}
+.xgr-view input[type="checkbox"] { margin: 0 !important; flex: 0 0 16px !important; width: 16px !important; height: 16px !important; min-width: 16px !important; min-height: 16px !important; position: static !important; transform: none !important; }
+.xgr-type-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 13px 7px 17px; font-size: 12px; }
+.xgr-type-choice { display: flex; gap: 4px; align-items: center; color: var(--xgr-type); }
+.xgr-view .xgr-reset-filter { font-size: 11px; padding: 1px 4px; }
+.xgr-view .xgr-paragraph-row { display: flex; align-items: baseline; gap: 7px; width: 100%; text-align: left; white-space: normal; padding: 7px 8px; margin-bottom: 1px; }
+.xgr-view .xgr-paragraph-row.is-current { background: var(--background-secondary); color: var(--text-normal); }
+.xgr-view .xgr-type-dot { font-size: 10px; color: var(--xgr-type); flex: 0 0 14px; width: 14px; min-width: 14px; white-space: nowrap; line-height: 1.6; text-align: center; }
+.xgr-row-title { font-size: 12px; line-height: 1.6; }
+.xgr-view .xgr-concept-search { width: 100%; margin-bottom: 17px; border: 1px solid var(--background-modifier-border); background: var(--background-secondary); color: var(--text-normal); box-shadow: none; height: 33px; font-size: 12px; padding: 6px 9px; }
+.xgr-concept-card { padding: 0 5px 14px; margin-bottom: 13px; border-bottom: 1px solid var(--background-modifier-border); }
+.xgr-view .xgr-concept-term { font-size: 14px; color: var(--xgr-d); padding: 2px 0; white-space: normal; text-align: left; }
+.xgr-concept-definition { font-size: 12px; line-height: 1.8; color: var(--text-normal); margin: 6px 0; }
+.xgr-view .xgr-concept-source { display: block; font-size: 11px; padding: 2px 0; text-align: left; white-space: normal; color: var(--text-faint); }
+.xgr-empty, .xgr-load-message { font-size: 13px; padding: 24px; color: var(--text-muted); }
+.xgr-image-modal { width: min(94vw, 1400px); max-width: 94vw; }
+.xgr-image-modal :is(button, .modal-title) { font-family: "KaiTi", "STKaiti", "楷体", serif !important; line-height: 1.5 !important; }
+.xgr-image-modal button { font-size: 14px !important; }
+.xgr-image-modal .modal-title { font-size: 16px !important; font-weight: 600 !important; }
+.xgr-library-modal { width: min(680px, 92vw); }
+.xgr-library-modal :is(input, button, label, p, li, strong, span, small, .modal-title) { font-family: "KaiTi", "STKaiti", "楷体", serif !important; }
+.xgr-library-modal .modal-title { font-size: 19px !important; line-height: 1.6 !important; }
+.xgr-library-search { width: 100%; margin: 2px 0 16px; }
+.xgr-library-list { max-height: 52vh; overflow: auto; }
+.xgr-library-row, .xgr-library-folder { display: block; width: 100%; height: auto; padding: 12px; margin-bottom: 8px; text-align: left; white-space: normal; line-height: 1.7; background: var(--background-secondary); }
+.xgr-library-row :is(strong, span, small) { display: block; }
+.xgr-library-row strong { font-size: 17px; color: var(--text-normal); }
+.xgr-library-row span { font-size: 13px; color: var(--text-muted); }
+.xgr-library-row small { font-size: 11px; color: var(--text-faint); overflow-wrap: anywhere; }
+.xgr-library-folder { font-size: 14px; overflow-wrap: anywhere; }
+.xgr-library-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.xgr-library-footer .xgr-button { padding: 8px 12px; }
+.xgr-library-help, .xgr-library-empty { font-size: 14px; line-height: 1.8; color: var(--text-muted); }
+.xgr-book-field { display: grid; grid-template-columns: 50px 1fr; align-items: center; gap: 12px; margin: 12px 0; font-size: 14px; }
+.xgr-book-field input { min-width: 0; width: 100%; }
+.xgr-book-preview { max-height: 32vh; overflow: auto; font-size: 14px; line-height: 1.8; padding-left: 28px; }
+.xgr-image-controls { display: flex; justify-content: center; gap: 10px; margin-bottom: 10px; }
+.xgr-image-viewport { overflow: auto; max-height: 78vh; width: 100%; text-align: center; }
+.xgr-large-image { display: block; margin: 0 auto; height: auto; }
+@container xgr-reader (max-width: 850px) {
+  .xgr-header { padding: 11px 14px 7px; gap: 5px; flex-wrap: wrap; }
+  .xgr-navigation { padding: 0 12px 8px; gap: 3px; }
+  .xgr-tabs { padding-left: 12px; }
+  .xgr-scroll { padding: 22px 20px 65px; }
+  .xgr-sidebar { width: 235px; flex-basis: 235px; }
+  .xgr-view .xgr-button { padding-left: 6px; padding-right: 6px; }
+}
+@container xgr-reader (max-width: 760px) {
+  .xgr-sidebar-open .xgr-frame { flex-direction: column; }
+  .xgr-sidebar { width: 100%; flex: 0 0 30%; max-height: 180px; border-right: 0; border-bottom: 1px solid var(--background-modifier-border); }
+  .xgr-header { align-items: flex-start; flex-direction: column; }
+  .xgr-identity { width: 100%; }
+  .xgr-header .xgr-tools { margin-left: 0; }
+  .xgr-author { font-size: 11px; }
+  .xgr-book-title { font-size: 16px; }
+  .xgr-navigation { flex-wrap: wrap; }
+  .xgr-navigation .xgr-chapter-select { order: -1; flex: 1 0 100%; max-width: none; }
+  .xgr-navigation .xgr-button { font-size: 11px; }
+  .xgr-scroll { padding-left: 14px; padding-right: 14px; }
+  .xgr-segment { padding-left: 8px; }
+  .xgr-guide-open .xgr-frame { flex-direction: column; }
+  .xgr-guide-open .xgr-scroll { flex: 1; }
+  .xgr-guide-panel { flex: 0 0 42%; width: 100%; max-width: none; border-left: 0; border-top: 1px solid var(--background-modifier-border); }
+}
+
+/* This native Markdown note carries cssclasses; source editing and reading
+   retain all installed native toolbars and sidebar containers. */
+.xuexiguan-home.markdown-preview-view,
+.xuexiguan-home.markdown-source-view.mod-cm6 .cm-content {
+  font-family: "KaiTi", "STKaiti", "楷体", serif !important;
+  font-size: 16px;
+  line-height: 1.75;
+}
+.xuexiguan-home :is(h1,h2,h3,.cm-header-1,.cm-header-2,.cm-header-3) {
+  font-family: "KaiTi", "STKaiti", "楷体", serif !important;
+  color: var(--text-normal) !important;
+  line-height: 1.5;
+}
+.xuexiguan-home :is(h1,.cm-header-1) { font-size: 1.75em; }
+.xuexiguan-home :is(h2,.cm-header-2) { font-size: 1.2em; }
+.workspace-leaf-content .markdown-preview-view.xuexiguan-home :is(p,a,span,li,td,th,.callout-title,.callout-content,.inline-title),
+.workspace-leaf-content .markdown-source-view.xuexiguan-home :is(p,a,span,li,td,th,.callout-title,.callout-content,.inline-title) {
+  font-family: "KaiTi", "STKaiti", "楷体", serif !important;
+}
+.xuexiguan-home .inline-title { font-size: 14px !important; color: var(--text-muted) !important; margin-bottom: 12px; }
+.xuexiguan-home .markdown-preview-sizer > div > h1 { margin-top: 8px; margin-bottom: 14px; }
+.xuexiguan-home p { margin-block: .7em; }
+.xuexiguan-home a { font-size: 1em !important; letter-spacing: normal !important; }
+.xuexiguan-home .callout-content { font-size: 16px; line-height: 1.75; }
+.xuexiguan-home .markdown-preview-sizer { max-width: 860px; margin-inline: auto; }
+.xuexiguan-home .callout[data-callout="read"] {
+  --callout-color: var(--color-blue-rgb);
+  --callout-icon: book-open;
+  border: 1px solid var(--background-modifier-border);
+  padding: 14px 16px;
+}
+.xuexiguan-home .callout[data-callout="read"] .callout-content > p:first-child {
+  font-weight: 600;
+  line-height: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.xuexiguan-home .callout[data-callout="read"] .callout-content > p:first-child a { white-space: nowrap; }
+.xuexiguan-home .callout-content { overflow-wrap: anywhere; }
+.xuexiguan-home table { width: 100%; font-size: .94em; border-collapse: collapse; }
+.xuexiguan-home :is(th,td) { white-space: normal; overflow-wrap: anywhere; vertical-align: top; padding: .55em .7em; }
+.xuexiguan-home table th:first-child { width: 30%; }
+.xuexiguan-home .snw-reference { display: none !important; }
+.xuexiguan-home .callout[data-callout="map"] .internal-embed { max-width: 100%; }
+
+/* The book's compiler-authored companion notes use native Markdown surfaces. */
+.markdown-preview-view.xuexiguan-annotation,
+.markdown-source-view.xuexiguan-annotation .cm-content {
+  font-size: 16px;
+  line-height: 1.8;
+}
+.workspace-leaf-content :is(.markdown-preview-view,.markdown-source-view).xuexiguan-annotation :is(p,a,span,li,td,th,h1,h2,h3,.callout-title,.callout-content,.inline-title) {
+  font-family: "KaiTi", "STKaiti", "楷体", serif !important;
+}
+.xuexiguan-annotation :is(h1,h2,h3,.cm-header-1,.cm-header-2,.cm-header-3) { color: var(--text-normal) !important; line-height: 1.5; }
+.xuexiguan-annotation :is(h1,.cm-header-1) { font-size: 1.65em; }
+.xuexiguan-annotation :is(h2,.cm-header-2) { font-size: 1.2em; margin-top: 1.6em; }
+.xuexiguan-annotation :is(h3,.cm-header-3) { font-size: 1.05em; }
+.xuexiguan-annotation .inline-title { font-size: 14px !important; color: var(--text-muted) !important; }
+.xuexiguan-annotation .markdown-preview-sizer { max-width: 860px; margin-inline: auto; }
+.xuexiguan-annotation a { font-size: 1em !important; letter-spacing: normal !important; }
+.xuexiguan-annotation :is(th,td) { white-space: normal; overflow-wrap: anywhere; vertical-align: top; }
+.xuexiguan-annotation .snw-reference { display: none !important; }
+
+/* Explicit book properties opt native notes into the same regular-script
+   typography. This never styles workspace headers, ribbons, sidebars, or
+   unrelated notes; native editing remains a normal CodeMirror surface. */
+.workspace-leaf-content .markdown-preview-view.xuexiguan-book,
+.workspace-leaf-content .markdown-source-view.xuexiguan-book .cm-content,
+.workspace-leaf-content .markdown-preview-view.xgr-book,
+.workspace-leaf-content .markdown-source-view.xgr-book .cm-content {
+  font-family: "KaiTi", "STKaiti", "楷体", serif !important;
+}
+.workspace-leaf-content :is(.markdown-preview-view,.markdown-source-view):is(.xuexiguan-book,.xgr-book) :is(p,a,span,li,td,th,h1,h2,h3,h4,h5,h6,strong,em,blockquote,code,pre,summary,.inline-title,.callout-title,.callout-content,.cm-content,.cm-line) {
+  font-family: "KaiTi", "STKaiti", "楷体", serif !important;
+}
