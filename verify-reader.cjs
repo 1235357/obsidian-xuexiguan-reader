@@ -3,6 +3,7 @@ const fs = require("fs"), path = require("path"), Module = require("module"), as
 const pluginPath = path.join(__dirname, "main.js");
 const originalLoad = Module._load;
 const renderedMarkdown = [];
+let markdownRenderHook = null;
 const parseYaml = text => Object.fromEntries(text.split(/\r?\n/).filter(line => /^[^:]+:/.test(line)).map(line => {
   const i = line.indexOf(":"), key = line.slice(0, i).trim(), raw = line.slice(i + 1).trim(), value = /^\d+$/.test(raw) ? Number(raw) : raw.replace(/^["']|["']$/g, ""); return [key, value];
 }));
@@ -14,15 +15,16 @@ class MockComponent {
   unload() { this.domEvents.forEach(({ element, type, callback, options }) => element.removeEventListener(type, callback, options)); this.domEvents = []; this.children.forEach(child => child.unload()); this.children = []; }
 }
 class MockElement {
-  constructor(document) { this.ownerDocument = document; this.children = []; this.listeners = new Map(); this.style = { setProperty() {} }; this.classList = { toggle() {}, add() {}, remove() {} }; this.dataset = {}; }
-  appendChild(child) { this.children.push(child); return child; }
-  replaceChildren() { this.children = []; }
-  setAttribute() {}
+  constructor(document) { this.ownerDocument = document; this.children = []; this.listeners = new Map(); this.style = { setProperty() {} }; this.classList = { toggle() {}, add() {}, remove() {} }; this.dataset = {}; this.attributes = new Map(); this.parentElement = null; }
+  appendChild(child) { child.remove?.(); this.children.push(child); child.parentElement = this; return child; }
+  replaceChildren() { this.children.forEach(child => child.parentElement = null); this.children = []; }
+  remove() { if (this.parentElement) this.parentElement.children = this.parentElement.children.filter(child => child !== this); this.parentElement = null; }
+  setAttribute(name, value) { this.attributes.set(name, String(value)); }
   addEventListener(type, callback) { const callbacks = this.listeners.get(type) || []; callbacks.push(callback); this.listeners.set(type, callbacks); }
   removeEventListener(type, callback) { this.listeners.set(type, (this.listeners.get(type) || []).filter(item => item !== callback)); }
   dispatch(type, event = {}) { [...this.listeners.get(type) || []].forEach(callback => callback(event)); }
 }
-Module._load = function (name, ...args) { if (name === "obsidian") return { Plugin: class {}, ItemView: class extends MockComponent { constructor(leaf) { super(); this.app = leaf.app; } }, Component: MockComponent, MarkdownRenderer: { render: async (app, markdown, article, sourcePath) => renderedMarkdown.push({ markdown, article, sourcePath }) }, Modal: class {}, Notice: class {}, normalizePath: s => s.replace(/\\/g, "/"), parseYaml }; return originalLoad.call(this, name, ...args); };
+Module._load = function (name, ...args) { if (name === "obsidian") return { Plugin: class {}, ItemView: class extends MockComponent { constructor(leaf) { super(); this.app = leaf.app; } }, Component: MockComponent, MarkdownRenderer: { render: async (app, markdown, article, sourcePath, component) => { renderedMarkdown.push({ markdown, article, sourcePath }); if (markdownRenderHook) await markdownRenderHook(app, markdown, article, sourcePath, component); } }, Modal: class {}, Notice: class {}, normalizePath: s => s.replace(/\\/g, "/"), parseYaml }; return originalLoad.call(this, name, ...args); };
 const Reader = require(pluginPath), h = Reader._testing; Module._load = originalLoad;
 const fixtureBookPath = "_ReaderRegression/既有书籍", genericPath = "_ReaderRegression/第二本书", content = new Map([
   [`${genericPath}/10 第二章.md`, '---\nbooktitle: 通用阅读测试\nauthor: 测试材料\norder: 2\n---\n# 第二章\n\n#v 检验\n\n这是一份验证材料。\n\n#s 普通标签\n保留自定义标签。\n'],
@@ -188,7 +190,10 @@ function mockEA() {
   // A tiny DOM double covers the actual grouping boundary. The last source
   // segment must stop even when MarkdownRenderer wraps the separator in el-div.
   class GroupNode {
-    constructor(tag = "div", text = "", className = "") { this.tag = tag; this.textContent = text; this.className = className; this.children = []; this.parentElement = null; this.nodeType = 1; this.dataset = {}; this.ownerDocument = groupDocument; this.classList = { contains: name => this.className.split(/\s+/).includes(name) }; }
+    constructor(tag = "div", text = "", className = "") {
+      this.tag = tag; this.textContent = text; this.className = className; this.children = []; this.parentElement = null; this.nodeType = 1; this.dataset = {}; this.ownerDocument = groupDocument; this.style = { setProperty() {} }; this.attributes = new Map();
+      this.classList = { contains: name => this.className.split(/\s+/).includes(name), add: name => { if (!this.classList.contains(name)) this.className += ` ${name}`; }, remove: name => { this.className = this.className.split(/\s+/).filter(item => item !== name).join(" "); }, toggle: (name, enabled) => { const add = enabled === undefined ? !this.classList.contains(name) : enabled; this.classList[add ? "add" : "remove"](name); } };
+    }
     appendChild(child) { child.remove(); this.children.push(child); child.parentElement = this; return child; }
     insertBefore(child, reference) { child.remove(); this.children.splice(this.children.indexOf(reference), 0, child); child.parentElement = this; }
     remove() { if (this.parentElement) this.parentElement.children.splice(this.parentElement.children.indexOf(this), 1); this.parentElement = null; }
@@ -196,7 +201,10 @@ function mockEA() {
     matches(selector) { return selector.split(",").some(part => part.trim().startsWith(".") ? this.className.split(/\s+/).includes(part.trim().slice(1)) : part.trim() === this.tag || part.trim() === `${this.tag}.${this.className}`); }
     querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
     querySelectorAll(selector) { return this.children.flatMap(child => [...(child.matches(selector) ? [child] : []), ...child.querySelectorAll(selector)]); }
-    setAttribute() {} addEventListener() {}
+    replaceChildren() { this.children.forEach(child => child.parentElement = null); this.children = []; this.textContent = ""; }
+    setAttribute(name, value) { this.attributes.set(name, String(value)); }
+    addEventListener() {} removeEventListener() {}
+    compareDocumentPosition() { return 4; }
   }
   const groupDocument = { createElement: tag => new GroupNode(tag) };
   for (const wrapped of [false, true]) {
@@ -212,6 +220,135 @@ function mockEA() {
     assert(!groupedSource.querySelectorAll("p").includes(annotationParagraph), "Compiler annotations remain outside source sections, including names-only/spotlight modes");
     assert.equal(annotationParagraph.parentElement, groupArticle);
   }
+  // Native Markdown rendering is asynchronous and can write intermediate h6
+  // markers before it finishes. Exercise the real chapter/guide lifecycle with
+  // independently delayed file reads, renderer completions and caption checks.
+  const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
+  const settleTurns = async () => { for (let i = 0; i < 16; i++) await Promise.resolve(); };
+  const treeText = element => `${element.textContent || ""}${element.children.map(treeText).join("")}`;
+  const loadingGuidePath = `${genericPath}/延迟测试解说.md`;
+  const loadingUnits = ["load-a", "load-b"].map((id, index) => ({ id, title: index ? "第二测试章" : "第一测试章", path: `${genericPath}/${id}.md`, guidePath: loadingGuidePath, guideHeading: index ? "第二章 解说" : "第一章 解说" }));
+  loadingUnits.forEach(unit => content.set(unit.path, `#d ${unit.title}规则\n${unit.title}的原文。\n`));
+  content.set(loadingGuidePath, guideSource);
+  const unitReadDelays = new Map(), renderDelays = new Map(), captionDelays = new Map(); let guideReadDelay = null;
+  const loadingApp = { ...app, vault: { ...vault, read: async file => { const delay = guideReadDelay; if (file.path === loadingGuidePath && delay) await delay.promise; return content.get(file.path); } } };
+  const makeLoadingView = () => {
+    const state = h.normalizeReadState({});
+    const loadingPlugin = { libraryData: { activeBook: genericPath }, stateFor: () => state, queueSave() {}, flushSave: async () => {}, readUnit: async metadata => { const delay = unitReadDelays.get(metadata.id); if (delay) await delay.promise; return h.liveUnit(metadata, content.get(metadata.path)); } };
+    const view = new h.ReaderView({ app: loadingApp }, loadingPlugin);
+    view.book = h.validBook({ title: "延迟渲染测试", units: loadingUnits }, genericPath); view.bookPath = genericPath;
+    view.contentEl = new GroupNode(); view.shell = view.contentEl.appendChild(new GroupNode());
+    view.applyAppearance = () => {}; view.renderSidebar = () => {}; view.persist = () => {}; view.capturePosition = () => {};
+    view.buildInterface();
+    view.suppressDuplicatedFigureCaptions = async function (...args) { const delay = captionDelays.get(this.unit.id); if (delay) await delay.promise; return h.ReaderView.prototype.suppressDuplicatedFigureCaptions.call(this, ...args); };
+    const group = view.groupSegments;
+    view.groupSegments = function (prepared) { assert.equal(this.article.style.visibility, "hidden", "Raw headings must remain concealed while actual source grouping runs"); return group.call(this, prepared); };
+    return view;
+  };
+  markdownRenderHook = async (app, markdown, article, sourcePath) => {
+    if (sourcePath === loadingGuidePath) article.textContent = markdown;
+    else {
+      for (const marker of markdown.matchAll(/^###### (XGRSEG\d{6})$/gm)) article.appendChild(new GroupNode("h6", marker[1]));
+      article.appendChild(new GroupNode("p", "已写入但尚未完成的正文。"));
+    }
+    const delay = renderDelays.get(sourcePath); if (delay) await delay.promise;
+  };
+  try {
+    const loadingView = makeLoadingView(); loadingView.guideOpen = true;
+    loadingView.guidePanel.appendChild(new GroupNode("p", "旧章节解说"));
+    const unitRead = deferred(), sourceRender = deferred(), captionCheck = deferred();
+    unitReadDelays.set("load-a", unitRead); renderDelays.set(loadingUnits[0].path, sourceRender); captionDelays.set("load-a", captionCheck);
+    const opening = loadingView.openUnit("load-a", false);
+    assert.equal(loadingView.scrollEl.attributes.get("aria-busy"), "true");
+    assert.equal(loadingView.article.style.visibility, "hidden");
+    assert(!treeText(loadingView.guidePanel).includes("旧章节解说"), "Selecting a chapter immediately removes the previous chapter's guide, before its file read finishes");
+    assert(treeText(loadingView.guidePanel).includes("正在载入本章解说"));
+    unitRead.resolve(); await settleTurns();
+    assert(treeText(loadingView.article).includes("XGRSEG000000"), "The delayed renderer really has written an intermediate raw segment heading");
+    assert.equal(loadingView.article.style.visibility, "hidden", "Intermediate marker text cannot flash during MarkdownRenderer's pending promise");
+    assert.equal(loadingView.article.attributes.get("aria-hidden"), "true");
+    sourceRender.resolve(); await settleTurns();
+    assert.equal(loadingView.article.style.visibility, "hidden", "Asynchronous source-caption validation also completes before source text is exposed");
+    captionCheck.resolve(); await opening;
+    assert.equal(loadingView.article.style.visibility, ""); assert.equal(loadingView.article.attributes.get("aria-hidden"), "false");
+    assert.equal(loadingView.scrollEl.attributes.get("aria-busy"), "false"); assert.equal(loadingView.rendering, false);
+    assert(!treeText(loadingView.article).includes("XGRSEG000000"), "Actual groupSegments replaces the temporary marker before revealing the article");
+    assert(treeText(loadingView.guidePanel).includes("本章编者说明。"));
+    unitReadDelays.clear(); renderDelays.clear(); captionDelays.clear();
+
+    const staleRead = deferred(); guideReadDelay = staleRead;
+    const olderGuide = loadingView.renderGuide(); const oldGuideComponent = loadingView.guideComponent;
+    const nextRead = deferred(); unitReadDelays.set("load-b", nextRead);
+    const nextOpening = loadingView.openUnit("load-b", false);
+    const guideGeneration = loadingView.guideGeneration, renderedBefore = renderedMarkdown.length;
+    staleRead.resolve(); await olderGuide;
+    assert.equal(renderedMarkdown.length, renderedBefore, "A stale guide file read is cancelled before rendering or extracting a different chapter's heading");
+    assert.equal(oldGuideComponent.domEvents.length, 0, "Replacing the guide also unloads its old click handler");
+    assert.equal(loadingView.guideGeneration, guideGeneration); assert(treeText(loadingView.guidePanel).includes("第二测试章"));
+    guideReadDelay = null; nextRead.resolve(); await nextOpening; unitReadDelays.clear();
+    assert(treeText(loadingView.guidePanel).includes("第二章编者说明。")); assert(!treeText(loadingView.guidePanel).includes("本章编者说明。"));
+
+    for (const lateFailure of [false, true]) {
+      const oldRender = deferred(); renderDelays.set(loadingUnits[0].path, oldRender);
+      const oldOpening = loadingView.openUnit("load-a", false); await settleTurns();
+      const oldArticle = loadingView.article;
+      const newestOpening = loadingView.openUnit("load-b", false); await newestOpening;
+      const newestArticle = loadingView.article, newestGuide = loadingView.guideScroll;
+      if (lateFailure) oldRender.reject(new Error("旧章延迟渲染失败")); else oldRender.resolve();
+      await oldOpening;
+      assert.equal(loadingView.article, newestArticle); assert.equal(loadingView.guideScroll, newestGuide);
+      assert.equal(loadingView.unit.id, "load-b"); assert.equal(loadingView.rendering, false);
+      assert.equal(oldArticle.style.visibility, "hidden", "A superseded renderer can finish or fail only in its detached, concealed article");
+      assert.equal(newestArticle.style.visibility, ""); assert.equal(loadingView.scrollEl.attributes.get("aria-busy"), "false");
+      assert(!treeText(newestArticle).includes("旧章延迟渲染失败")); renderDelays.clear();
+    }
+
+    // Late guide rendering likewise holds only its own article/component.
+    const oldGuideRender = deferred(); renderDelays.set(loadingGuidePath, oldGuideRender);
+    const olderRenderedGuide = loadingView.renderGuide(); await settleTurns();
+    const oldGuideArticle = renderedMarkdown.at(-1).article;
+    renderDelays.delete(loadingGuidePath);
+    await loadingView.openUnit("load-a", false);
+    const currentGuide = loadingView.guideScroll; oldGuideRender.resolve(); await olderRenderedGuide;
+    assert.equal(loadingView.guideScroll, currentGuide); assert.equal(oldGuideArticle.style.visibility, "hidden");
+    assert(treeText(loadingView.guidePanel).includes("本章编者说明。"));
+    assert.equal(loadingView.guidePanel.attributes.get("aria-busy"), "false");
+
+    loadingView.scrollEl.isConnected = true; loadingView.scrollEl.getBoundingClientRect = () => ({ top: 0, width: 500, height: 300 }); loadingView.nearestSegment = () => null;
+    const errorBookmark = { top: 900, segmentId: "bookmarked-segment", offset: 13 };
+    loadingView.plugin.stateFor(genericPath).positions["load-b"] = { ...errorBookmark };
+    for (const stage of ["read", "render", "caption"]) {
+      const failure = deferred();
+      const delays = stage === "read" ? unitReadDelays : stage === "render" ? renderDelays : captionDelays;
+      delays.set(stage === "render" ? loadingUnits[1].path : "load-b", failure);
+      const failedOpening = loadingView.openUnit("load-b", false); await settleTurns(); failure.reject(new Error(`${stage}故障`)); await failedOpening;
+      assert.equal(loadingView.article.style.visibility, ""); assert.equal(loadingView.scrollEl.attributes.get("aria-busy"), "false");
+      assert.equal(loadingView.rendering, false); assert.equal(loadingView.pendingUnit, null);
+      assert(treeText(loadingView.article).includes(`${stage}故障`)); assert(treeText(loadingView.article).includes("重试"));
+      assert(!treeText(loadingView.article).includes("XGRSEG000000")); assert(!treeText(loadingView.guidePanel).includes("正在载入"));
+      h.ReaderView.prototype.capturePosition.call(loadingView);
+      assert.deepEqual(loadingView.plugin.stateFor(genericPath).positions["load-b"], errorBookmark, "An error page is not a readable chapter position and cannot overwrite its previous bookmark");
+      assert.equal(loadingView.guidePanel.attributes.get("aria-busy"), "false"); delays.clear();
+    }
+    await loadingView.openUnit("load-a", false);
+    loadingView.scrollEl.scrollTop = 241; h.ReaderView.prototype.capturePosition.call(loadingView);
+    assert.equal(loadingView.plugin.stateFor(genericPath).positions["load-a"].top, 241, "A successful subsequent chapter clears the error guard and captures reading positions normally");
+    const guideFailure = deferred(); renderDelays.set(loadingGuidePath, guideFailure);
+    const failingGuide = loadingView.renderGuide(); await settleTurns(); guideFailure.reject(new Error("解说渲染故障")); await failingGuide;
+    const errorGuide = renderedMarkdown.at(-1).article;
+    assert.equal(errorGuide.style.visibility, ""); assert(treeText(errorGuide).includes("解说渲染故障"));
+    assert.equal(loadingView.guidePanel.attributes.get("aria-busy"), "false"); renderDelays.clear();
+
+    const closingGuideDelay = deferred(); renderDelays.set(loadingGuidePath, closingGuideDelay);
+    const closingGuide = loadingView.renderGuide(); await settleTurns(); loadingView.closeGuide(); closingGuideDelay.resolve(); await closingGuide;
+    assert.equal(loadingView.guidePanel.hidden, true); assert.equal(loadingView.guidePanel.children.length, 0);
+    assert.equal(loadingView.guidePanel.attributes.get("aria-busy"), "false"); renderDelays.clear();
+    const closingRender = deferred(); renderDelays.set(loadingUnits[1].path, closingRender);
+    const closingChapter = loadingView.openUnit("load-b", false); await settleTurns(); const closingArticle = loadingView.article;
+    await loadingView.onClose(); closingRender.resolve(); await closingChapter;
+    assert.equal(loadingView.contentEl.children.length, 0); assert.equal(loadingView.closed, true); assert.equal(loadingView.rendering, false);
+    assert.equal(closingArticle.style.visibility, "hidden", "Closing a native leaf cannot expose delayed renderer content afterwards");
+  } finally { markdownRenderHook = null; guideReadDelay = null; unitReadDelays.clear(); renderDelays.clear(); captionDelays.clear(); }
   const imagePath = `${genericPath}/Assets/Figures/demo.png`; content.set(imagePath, "image");
   const sized = h.rewriteImageEmbeds(`![[${imagePath}|240x120]]`, app, renamed.units[0].path, genericPath); assert(sized.includes('width="240"') && sized.includes('height="120"'));
   const sizedWidth = h.rewriteImageEmbeds(`![[${imagePath}|240]]`, app, renamed.units[0].path, genericPath); assert(sizedWidth.includes('width="240"') && sizedWidth.includes("height:auto"));
@@ -395,5 +532,5 @@ function mockEA() {
   const runtimeText = fs.readFileSync(pluginPath, "utf8");
   assert(!/Northwestern|README_FIRST_|figure-page-\d{4}|AUDITED_FIGURE_CAPTIONS|BOOK_PATH/.test(runtimeText), "Public and deployed source contain no embedded private book path or audit table");
   assert.equal(commands.find(command => command.id === "open-book").name, "阅读当前书籍");
-  console.log(JSON.stringify({ fixtureUnits: currentUnits.length, fixtureConcepts: 2, fixtureMaterialCounts: count, legacyBookmarkMigration: "pass", emptyLibraryShelf: "pass", priorActiveBookRetained: "pass", protocolAliasesAndVaultScope: "pass", manifestFigureAuditSafety: "pass", exactUnchangedCropCaptionOnly: "pass", genericUnits: 2, naturalAndFrontmatterOrder: "pass", metadataOnlyManifest: "pass", noPDFRequired: "pass", liveSavedEdit: "pass", liveSourceRename: "pass", renameBookmarkContinuityAfterReload: "pass", perBookStateIsolation: "pass", explicitUniqueRelation: "pass", exactRelationMetadata: "pass", ambiguousRelationNotLinked: "pass", paragraphMultiselectAndFamily: "pass", typeAndParagraphSpotlightIndependent: "pass", safeOptionalGuidePath: "pass", guideHeadingPathAndSingleLineValidation: "pass", exactSharedGuideHeadingAndNestedSection: "pass", guideMissingOrDuplicateHeadingReported: "pass", guideCodeAndCommentHeadingsIgnored: "pass", guideRenderSectionAndPerChapterScroll: "pass", continuousAnnotationsExcludedFromSourceIndexes: "pass", originalPrefixAndCRLFPreserved: "pass", ordinaryMarkdownNeverTruncated: "pass", annotationOutsideSourceDOMGroups: "pass", scopedRegularScriptTypography: "pass", actualVSupported: "pass", customSQPreserved: "pass", imageDimensions: "pass", codeLiteralImageSyntax: "pass", codeConceptsExcluded: "pass", genericNativeEAScript: "pass", existingMapNotOverwritten: "pass", bookmarkGeometry: "pass", hiddenExplicitSegmentPriority: "pass", interfaceListenerLifecycle: "pass", visibleBeforeChapterAndBookRender: "pass", publicSourceGeneric: "pass", testWrites: "in-memory mock only", nativeUI: "pending" }));
+  console.log(JSON.stringify({ fixtureUnits: currentUnits.length, fixtureConcepts: 2, fixtureMaterialCounts: count, legacyBookmarkMigration: "pass", emptyLibraryShelf: "pass", priorActiveBookRetained: "pass", protocolAliasesAndVaultScope: "pass", manifestFigureAuditSafety: "pass", exactUnchangedCropCaptionOnly: "pass", genericUnits: 2, naturalAndFrontmatterOrder: "pass", metadataOnlyManifest: "pass", noPDFRequired: "pass", liveSavedEdit: "pass", liveSourceRename: "pass", renameBookmarkContinuityAfterReload: "pass", perBookStateIsolation: "pass", explicitUniqueRelation: "pass", exactRelationMetadata: "pass", ambiguousRelationNotLinked: "pass", paragraphMultiselectAndFamily: "pass", typeAndParagraphSpotlightIndependent: "pass", safeOptionalGuidePath: "pass", guideHeadingPathAndSingleLineValidation: "pass", exactSharedGuideHeadingAndNestedSection: "pass", guideMissingOrDuplicateHeadingReported: "pass", guideCodeAndCommentHeadingsIgnored: "pass", guideRenderSectionAndPerChapterScroll: "pass", continuousAnnotationsExcludedFromSourceIndexes: "pass", originalPrefixAndCRLFPreserved: "pass", ordinaryMarkdownNeverTruncated: "pass", annotationOutsideSourceDOMGroups: "pass", delayedSourceMarkersConcealedUntilGrouped: "pass", guideClearedAtChapterSelection: "pass", staleSourceAndGuideGenerationsCancelled: "pass", sourceReadRenderAndCaptionErrorsReleased: "pass", failedChapterBookmarkPreserved: "pass", guideErrorAndCloseDuringRender: "pass", nativeLeafCloseDuringRender: "pass", scopedRegularScriptTypography: "pass", actualVSupported: "pass", customSQPreserved: "pass", imageDimensions: "pass", codeLiteralImageSyntax: "pass", codeConceptsExcluded: "pass", genericNativeEAScript: "pass", existingMapNotOverwritten: "pass", bookmarkGeometry: "pass", hiddenExplicitSegmentPriority: "pass", interfaceListenerLifecycle: "pass", visibleBeforeChapterAndBookRender: "pass", publicSourceGeneric: "pass", testWrites: "in-memory mock only", nativeUI: "pending" }));
 })().catch(error => { console.error(error.stack); process.exitCode = 1; });

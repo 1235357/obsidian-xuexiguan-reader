@@ -51,6 +51,7 @@
 .xgr-sidebar { width: 290px; flex: 0 0 290px; display: none; overflow: auto; padding: 17px 12px 28px; border-right: 1px solid var(--background-modifier-border); background: var(--background-primary); scrollbar-width: thin; }
 .xgr-sidebar-open .xgr-sidebar { display: block; }
 .xgr-scroll { flex: 1; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 28px 36px 80px; scrollbar-width: thin; }
+.xgr-view .xgr-load-message { color: var(--text-muted); font-family: inherit; font-size: 14px; line-height: 1.7; margin: 0 0 1em; overflow-wrap: anywhere; }
 .xgr-view .xgr-article {
   font-family: "KaiTi", "STKaiti", "楷体", serif;
   font-size: var(--xgr-font-size); line-height: 1.9;

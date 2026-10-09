@@ -532,9 +532,9 @@ class ReaderView extends ItemView {
     const state = this.bookPath ? plugin.stateFor(this.bookPath) : normalizeReadState({});
     this.readState = { ...state, selectedTypes: [...state.selectedTypes] };
     this.sectionMap = new Map(); this.scrollTimer = null; this.restoreTimer = null; this.rendering = false;
-    this.refreshGeneration = 0;
+    this.refreshGeneration = 0; this.chapterLoadFailed = false;
     this.guideOpen = false; this.guideGeneration = 0;
-    this.pendingSegmentId = "";
+    this.pendingSegmentId = ""; this.pendingUnit = null;
     this.interfaceComponent = null;
   }
   getViewType() { return VIEW_TYPE; }
@@ -638,49 +638,77 @@ class ReaderView extends ItemView {
     const metadata = this.book.units.find(unit => unit.id === unitId) || this.book.units[0];
     if (this.unit) this.capturePosition();
     const generation = ++this.renderGeneration;
-    let nextUnit;
-    try { nextUnit = await this.plugin.readUnit(metadata); }
-    catch (error) { if (!this.closed && generation === this.renderGeneration) new Notice(error.message || "无法读取本章 Markdown 书稿。"); return; }
-    if (this.closed || generation !== this.renderGeneration) return;
-    const metadataIndex = this.book.units.findIndex(item => item.id === nextUnit.id);
-    this.book.units[metadataIndex] = nextUnit;
-    this.book.concepts = this.book.concepts.filter(concept => concept.unitId !== nextUnit.id).concat(conceptsFromUnit(nextUnit, this.book.sourceConcepts));
-    this.book.concepts.sort((a, b) => this.book.units.findIndex(unit => unit.id === a.unitId) - this.book.units.findIndex(unit => unit.id === b.unitId));
-    const saved = this.plugin.stateFor(this.bookPath).positions[nextUnit.id] ? { ...this.plugin.stateFor(this.bookPath).positions[nextUnit.id] } : null;
-    clearTimeout(this.scrollTimer); this.rendering = true;
-    this.unit = nextUnit; this.readState.unitId = nextUnit.id;
-    this.sourceButton.hidden = !this.originalPagePath(nextUnit.pdfStart);
-    this.guideButton.hidden = !nextUnit.guidePath || !this.app.vault.getAbstractFileByPath(nextUnit.guidePath);
+    const bookPath = this.bookPath;
+    const saved = this.plugin.stateFor(bookPath).positions[metadata.id] ? { ...this.plugin.stateFor(bookPath).positions[metadata.id] } : null;
+    clearTimeout(this.scrollTimer); this.rendering = true; this.chapterLoadFailed = false;
+    this.pendingUnit = metadata; this.unit = metadata; this.readState.unitId = metadata.id;
+    this.sourceButton.hidden = !this.originalPagePath(metadata.pdfStart);
+    this.guideButton.hidden = !metadata.guidePath || !this.app.vault.getAbstractFileByPath(metadata.guidePath);
     this.restoring = false; this.restorePosition = null; this.pendingRestorePosition = null; this.pendingSegmentId = ""; clearTimeout(this.restoreTimer);
     if (this.renderComponent) this.removeChild(this.renderComponent);
-    this.renderComponent = this.addChild(new Component());
-    this.scrollEl.replaceChildren(); this.scrollEl.scrollTop = 0; this.sectionMap.clear();
-    this.chapterSelect.value = nextUnit.id;
-    const chapterIndex = this.book.units.indexOf(nextUnit);
+    const component = this.addChild(new Component()); this.renderComponent = component;
+    this.scrollEl.replaceChildren(); this.scrollEl.scrollTop = 0; this.sectionMap.clear(); this.currentSegments = [];
+    this.chapterSelect.value = metadata.id;
+    const chapterIndex = this.book.units.indexOf(metadata);
     this.previousButton.disabled = chapterIndex === 0; this.nextButton.disabled = chapterIndex === this.book.units.length - 1;
-    this.article = node(this.scrollEl, "article", "xgr-article markdown-rendered");
-    this.article.setAttribute("aria-label", nextUnit.title);
-    const prepared = prepareMarkdown(nextUnit);
-    const markdown = rewriteImageEmbeds(prepared.markdown, this.app, nextUnit.path, this.bookPath);
+    this.previousParagraphButton.disabled = true; this.nextParagraphButton.disabled = true;
+    this.scrollEl.setAttribute("aria-busy", "true");
+    const loading = node(this.scrollEl, "p", "xgr-load-message", "正在载入本章正文…"); loading.setAttribute("role", "status");
+    const article = node(this.scrollEl, "article", "xgr-article markdown-rendered"); this.article = article;
+    article.setAttribute("aria-label", metadata.title); article.setAttribute("aria-hidden", "true"); article.style.visibility = "hidden";
+    // Keep Markdown connected and measurable, but do not expose temporary
+    // segment headings before grouping and source-caption processing finish.
+    const isCurrent = () => !this.closed && generation === this.renderGeneration;
+    const reveal = () => {
+      loading.remove(); article.style.visibility = ""; article.setAttribute("aria-hidden", "false");
+      this.scrollEl.setAttribute("aria-busy", "false"); this.rendering = false; this.pendingUnit = null;
+    };
+    if (this.guideOpen && !this.guideButton.hidden) this.showGuideLoading(metadata);
+    else this.closeGuide();
+    let stage = "read";
     try {
-      if (typeof MarkdownRenderer.render === "function") await MarkdownRenderer.render(this.app, markdown, this.article, nextUnit.path, this.renderComponent);
-      else await MarkdownRenderer.renderMarkdown(markdown, this.article, nextUnit.path, this.renderComponent);
-    } catch (error) { if (!this.closed && generation === this.renderGeneration) { this.rendering = false; this.article.textContent = "本章暂时无法渲染。"; button(this.article, "打开原文", "在原生笔记中打开本章", () => this.openSourceNote()); } return; }
-    if (this.closed || generation !== this.renderGeneration) return;
-    await this.suppressDuplicatedFigureCaptions();
-    if (this.closed || generation !== this.renderGeneration) return;
-    this.groupSegments(prepared);
-    const hasMaterials = this.currentSegments.some(segment => segment.type !== "h" && this.sectionMap.has(segment.id));
-    this.previousParagraphButton.disabled = !hasMaterials; this.nextParagraphButton.disabled = !hasMaterials;
-    this.applyAppearance(); this.renderSidebar();
-    if (this.guideOpen && !this.guideButton.hidden) await this.renderGuide();
-    else if (this.guideButton.hidden) this.closeGuide();
-    if (this.closed || generation !== this.renderGeneration) return;
-    this.rendering = false;
+      const nextUnit = await this.plugin.readUnit(metadata);
+      if (!isCurrent()) return;
+      const metadataIndex = this.book.units.findIndex(item => item.id === nextUnit.id);
+      this.book.units[metadataIndex] = nextUnit;
+      this.book.concepts = this.book.concepts.filter(concept => concept.unitId !== nextUnit.id).concat(conceptsFromUnit(nextUnit, this.book.sourceConcepts));
+      this.book.concepts.sort((a, b) => this.book.units.findIndex(unit => unit.id === a.unitId) - this.book.units.findIndex(unit => unit.id === b.unitId));
+      this.unit = nextUnit;
+      const prepared = prepareMarkdown(nextUnit);
+      const markdown = rewriteImageEmbeds(prepared.markdown, this.app, nextUnit.path, bookPath);
+      stage = "render";
+      if (typeof MarkdownRenderer.render === "function") await MarkdownRenderer.render(this.app, markdown, article, nextUnit.path, component);
+      else await MarkdownRenderer.renderMarkdown(markdown, article, nextUnit.path, component);
+      if (!isCurrent()) return;
+      await this.suppressDuplicatedFigureCaptions(article, bookPath, this.book);
+      if (!isCurrent()) return;
+      this.groupSegments(prepared);
+      const hasMaterials = this.currentSegments.some(segment => segment.type !== "h" && this.sectionMap.has(segment.id));
+      this.previousParagraphButton.disabled = !hasMaterials; this.nextParagraphButton.disabled = !hasMaterials;
+      this.applyAppearance(); this.renderSidebar();
+      reveal();
+    } catch (error) {
+      if (!isCurrent()) return;
+      article.replaceChildren();
+      node(article, "p", "", stage === "read" ? "无法读取本章 Markdown 书稿。" : "本章暂时无法渲染。").setAttribute("role", "alert");
+      if (error.message) node(article, "p", "xgr-load-message", error.message);
+      button(article, "重试", "重新载入本章", () => this.openUnit(metadata.id, restore, segmentId));
+      button(article, "打开原文", "在原生笔记中打开本章", () => this.app.workspace.openLinkText(metadata.path, metadata.path, "tab"));
+      this.chapterLoadFailed = true;
+      reveal();
+      if (this.guideOpen) {
+        this.guidePanel.replaceChildren(); this.guidePanel.setAttribute("aria-busy", "false");
+        node(this.guidePanel, "p", "xgr-load-message", "本章正文未能加载，请重试后查看解说。").setAttribute("role", "alert");
+        button(this.guidePanel, "×", "关闭解说栏", () => this.closeGuide());
+      }
+      return;
+    }
     if (segmentId) this.goToSegment(segmentId);
     else if (restore && saved) this.restoreReadingPosition(saved);
     else this.scrollEl.scrollTop = 0;
     this.persist();
+    if (this.guideOpen && !this.guideButton.hidden) await this.renderGuide();
+    else if (this.guideButton.hidden) this.closeGuide();
   }
   async refreshSources(showNotice = false) {
     if (!this.book || this.closed) return;
@@ -699,11 +727,11 @@ class ReaderView extends ItemView {
     } catch (error) { if (!this.closed) new Notice(error.message || "无法刷新本地书稿。"); }
     finally { if (this.refreshButton && generation === this.refreshGeneration) this.refreshButton.disabled = false; }
   }
-  async suppressDuplicatedFigureCaptions() {
-    const article = this.article, audits = this.book?.figureCaptionAudits || {};
+  async suppressDuplicatedFigureCaptions(article = this.article, bookPath = this.bookPath, book = this.book) {
+    const audits = book?.figureCaptionAudits || {};
     let suppressed = 0;
     for (const image of Array.from(article.querySelectorAll("img"))) {
-      const audited = auditedFigureImage(image, this.bookPath, audits);
+      const audited = auditedFigureImage(image, bookPath, audits);
       if (!audited || !Array.isArray(audited.audit.figures) || !audited.audit.figures.length || image.closest("table, blockquote, li")) continue;
       let imageBlock = image.closest("p") || image;
       while (imageBlock.parentElement && imageBlock.parentElement !== article) imageBlock = imageBlock.parentElement;
@@ -715,7 +743,7 @@ class ReaderView extends ItemView {
       if (!paragraph || nextBlock.textContent.trim() !== paragraph.textContent.trim() || paragraph.querySelector("a, img, code, .math, .math-inline")) continue;
       const figure = standaloneFigureCaption(paragraph.textContent);
       if (!figure || !audited.audit.figures.includes(figure)) continue;
-      if (!await this.plugin.matchesAuditedCaptionCrop(this.bookPath, audited.filename, audited.audit.sha256)) continue;
+      if (!await this.plugin.matchesAuditedCaptionCrop(bookPath, audited.filename, audited.audit.sha256)) continue;
       paragraph.classList.add("xgr-duplicate-caption");
       suppressed++;
     }
@@ -896,39 +924,69 @@ class ReaderView extends ItemView {
   async toggleGuide() {
     if (this.guideOpen) { this.closeGuide(); return; }
     if (!this.unit?.guidePath || this.guideButton.hidden) return;
-    this.guideOpen = true; await this.renderGuide();
+    this.guideOpen = true;
+    if (this.pendingUnit) { this.showGuideLoading(this.pendingUnit); return; }
+    await this.renderGuide();
+  }
+  showGuideLoading(unit) {
+    ++this.guideGeneration;
+    if (this.guideComponent) { this.removeChild(this.guideComponent); this.guideComponent = null; }
+    this.guidePanel.replaceChildren(); this.guidePanel.hidden = false; this.guidePanel.setAttribute("aria-busy", "true");
+    this.shell.classList.add("xgr-guide-open"); this.guideButton.setAttribute("aria-pressed", "true");
+    const tools = node(this.guidePanel, "div", "xgr-guide-tools");
+    node(tools, "strong", "", "解说"); button(tools, "×", "关闭解说栏", () => this.closeGuide());
+    const scroll = node(this.guidePanel, "div", "xgr-guide-scroll");
+    const loading = node(scroll, "p", "xgr-load-message", "正在载入本章解说…"); loading.setAttribute("role", "status");
+    node(scroll, "p", "xgr-load-message", unit.title);
+    // Retain the detached prior scroll only to restore a same-chapter refresh;
+    // its component is unloaded and its generation cannot update this panel.
   }
   closeGuide() {
     this.guideOpen = false; ++this.guideGeneration;
     if (this.guideComponent) { this.removeChild(this.guideComponent); this.guideComponent = null; }
-    if (this.guidePanel) { this.guidePanel.hidden = true; this.guidePanel.replaceChildren(); }
+    if (this.guidePanel) { this.guidePanel.hidden = true; this.guidePanel.replaceChildren(); this.guidePanel.setAttribute("aria-busy", "false"); }
     if (this.shell) this.shell.classList.remove("xgr-guide-open");
     if (this.guideButton) this.guideButton.setAttribute("aria-pressed", "false");
   }
   async renderGuide() {
-    const path = this.unit?.guidePath, file = path && this.app.vault.getAbstractFileByPath(path);
+    if (this.pendingUnit && this.guideOpen && !this.closed) { this.showGuideLoading(this.pendingUnit); return; }
+    const unit = this.unit, bookPath = this.bookPath;
+    const path = unit?.guidePath, file = path && this.app.vault.getAbstractFileByPath(path);
     if (!this.guideOpen || !file || this.closed) { this.closeGuide(); return; }
-    const sectionKey = `${this.unit.id}\n${path}\n${this.unit.guideHeading || ""}`;
+    const sectionKey = `${unit.id}\n${path}\n${unit.guideHeading || ""}`;
     const generation = ++this.guideGeneration, offset = this.guideSectionKey === sectionKey ? this.guideScroll?.scrollTop || 0 : 0;
     this.guideSectionKey = sectionKey;
     if (this.guideComponent) this.removeChild(this.guideComponent);
-    this.guideComponent = this.addChild(new Component());
-    this.guidePanel.replaceChildren(); this.guidePanel.hidden = false;
+    const component = this.addChild(new Component()); this.guideComponent = component;
+    this.guidePanel.replaceChildren(); this.guidePanel.hidden = false; this.guidePanel.setAttribute("aria-busy", "true");
     this.shell.classList.add("xgr-guide-open"); this.guideButton.setAttribute("aria-pressed", "true");
     const tools = node(this.guidePanel, "div", "xgr-guide-tools");
     node(tools, "strong", "", "解说");
-    button(tools, "笔记", "在原生笔记中编辑本章解说", () => this.app.workspace.openLinkText(`${path}${this.unit.guideHeading ? `#${this.unit.guideHeading}` : ""}`, this.unit.path, "tab"));
+    button(tools, "笔记", "在原生笔记中编辑本章解说", () => this.app.workspace.openLinkText(`${path}${unit.guideHeading ? `#${unit.guideHeading}` : ""}`, unit.path, "tab"));
     button(tools, "×", "关闭解说栏", () => this.closeGuide());
     const scroll = node(this.guidePanel, "div", "xgr-guide-scroll"); scroll.setAttribute("aria-label", "本章解说"); scroll.tabIndex = 0; this.guideScroll = scroll;
+    const loading = node(scroll, "p", "xgr-load-message", "正在载入本章解说…"); loading.setAttribute("role", "status");
     const article = node(scroll, "article", "xgr-article markdown-rendered");
-    this.guideComponent.registerDomEvent(scroll, "click", event => this.handleReadingClick(event, article, scroll, path), true);
+    article.style.visibility = "hidden"; article.setAttribute("aria-hidden", "true");
+    component.registerDomEvent(scroll, "click", event => this.handleReadingClick(event, article, scroll, path), true);
+    const isCurrent = () => !this.closed && this.guideOpen && generation === this.guideGeneration;
+    const reveal = () => {
+      loading.remove(); article.style.visibility = ""; article.setAttribute("aria-hidden", "false");
+      this.guidePanel.setAttribute("aria-busy", "false");
+    };
     try {
-      const markdown = rewriteImageEmbeds(readGuideSection(await this.app.vault.read(file), this.unit.guideHeading), this.app, path, this.bookPath);
-      if (this.closed || generation !== this.guideGeneration) return;
-      if (typeof MarkdownRenderer.render === "function") await MarkdownRenderer.render(this.app, markdown, article, path, this.guideComponent);
-      else await MarkdownRenderer.renderMarkdown(markdown, article, path, this.guideComponent);
-      if (!this.closed && generation === this.guideGeneration) scroll.scrollTop = offset;
-    } catch (error) { if (!this.closed && generation === this.guideGeneration) article.textContent = error.message || "暂时无法读取解说笔记。"; }
+      const source = await this.app.vault.read(file);
+      if (!isCurrent()) return;
+      const markdown = rewriteImageEmbeds(readGuideSection(source, unit.guideHeading), this.app, path, bookPath);
+      if (typeof MarkdownRenderer.render === "function") await MarkdownRenderer.render(this.app, markdown, article, path, component);
+      else await MarkdownRenderer.renderMarkdown(markdown, article, path, component);
+      if (!isCurrent()) return;
+      reveal(); scroll.scrollTop = offset;
+    } catch (error) {
+      if (!isCurrent()) return;
+      article.replaceChildren(); node(article, "p", "", error.message || "暂时无法读取解说笔记。").setAttribute("role", "alert");
+      reveal();
+    }
   }
   setFont(delta) {
     this.capturePosition();
@@ -966,7 +1024,7 @@ class ReaderView extends ItemView {
     return closestVisibleSegment(this.sectionMap, this.scrollEl.getBoundingClientRect().top + 42);
   }
   capturePosition() {
-    if (!this.unit || !hasReadingLayout(this.scrollEl) || this.restoring || this.rendering || this.pendingRestorePosition || this.pendingSegmentId) return;
+    if (!this.unit || !hasReadingLayout(this.scrollEl) || this.restoring || this.rendering || this.chapterLoadFailed || this.pendingRestorePosition || this.pendingSegmentId) return;
     const nearest = this.nearestSegment();
     this.plugin.stateFor(this.bookPath).positions[this.unit.id] = { top: this.scrollEl.scrollTop, segmentId: nearest ? nearest.id : "", offset: nearest ? this.scrollEl.getBoundingClientRect().top - nearest.element.getBoundingClientRect().top : 0 };
   }
@@ -1074,7 +1132,7 @@ class ReaderView extends ItemView {
   }
   async onClose() {
     this.capturePosition(); this.persist(); this.closed = true; ++this.renderGeneration; ++this.refreshGeneration;
-    this.pendingSegmentId = "";
+    this.pendingSegmentId = ""; this.pendingUnit = null; this.rendering = false;
     clearTimeout(this.scrollTimer); clearTimeout(this.restoreTimer);
     if (this.interfaceComponent) { this.removeChild(this.interfaceComponent); this.interfaceComponent = null; }
     this.contentEl.classList.remove("xgr-view");
